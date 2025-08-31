@@ -188,7 +188,8 @@ get_all <- function(gas, hog){
   }
   for (anio in anios){
     hog_temp <- hog %>%
-      filter(anio_lavad == anio)
+      filter(anio_lavad == anio) %>%
+      filter(num_lavad == 1)
     lavad_anios[[as.character(anio)]] <- sum(hog_temp$lavad_n, na.rm = TRUE)
     
   }
@@ -204,39 +205,56 @@ get_all <- function(gas, hog){
 }
 
 
-
-
+coso12 <- get_all(gh12, hog12)
+coso14 <- get_all(gh14, hog14)
 coso16 <- get_all(gh16, hog16)
 coso18 <- get_all(gh18, hog18)
 coso20 <- get_all(gh20, hog20)
 coso22 <- get_all(gh22, hog22)
 coso24 <- get_all(gh24, hog24)
 
-coso_list <- list(coso16, coso18, coso20, coso22, coso24)
+colnames(coso24$df_final) <- ifelse(
+  grepl("^[0-9]$", colnames(coso24$df_final)),  # If it's a single digit
+  paste0("0", colnames(coso24$df_final)),       # Add leading zero
+  colnames(coso24$df_final)                     
+)
+colnames(coso12$df_final) <- ifelse(
+  grepl("^[0-9]$", colnames(coso12$df_final)),  # If it's a single digit
+  paste0("0", colnames(coso12$df_final)),       # Add leading zero
+  colnames(coso12$df_final)                     
+)
 
-pene <- coso_list[[1]]
 
-anios_df <- data.frame(id = seq(1, 5))
-anios_df[[as.character("00")]] <- NA
-anios_df[[as.character("01")]] <- NA
-anios_df[[as.character("02")]] <- NA
-anios_df[[as.character("03")]] <- NA
-anios_df[[as.character("04")]] <- NA
+coso_list <- list(coso12, coso14, coso16, coso18, coso20, coso22, coso24)
 
-for (i in 1:5){
+View(table(hog10$eqh12_a))
+View(table(hog12$anio_lavad))
+View(table(hog14$anio_lavad))
+View(table(hog16$anio_lavad))
+View(table(hog18$anio_lavad))
+
+
+anios_df <- data.frame(id = c(2012, 2014, 2016, 2018, 2020, 2022, 2024),
+                       cantidad = NA)
+
+valores1 <- c("00", "01", "02", "03", "04", "05")
+valores <- c("06", "07", "08", "09", "10")
+for (valor in valores){
+  anios_df[[as.character(valor)]] <- NA
+}
+
+for (i in 1:7){
   coso_0 <- coso_list[[i]]
-  coso_1 <- coso_0$df_final
-  data_00 <- coso_1[1, "00"]
-  data_01 <- coso_1[1, "01"]
-  data_02 <- coso_1[1, "02"]
-  data_03 <- coso_1[1, "03"]
-  data_04 <- coso_1[1, "04"]
+  coso_1 <- coso_0$df_final %>%
+    select(-ventas)
   
-  anios_df[i, "00"] <-  data_00
-  anios_df[i, "01"] <-  data_01
-  anios_df[i, "02"] <-  data_02
-  anios_df[i, "03"] <-  data_03
-  anios_df[i, "04"] <-  data_04
+  data_ini <- coso_1[1, 1] / 1000
+  anios_df[i, "cantidad"] <- data_ini
+  
+  for (valor in valores){
+    data_00 <- coso_1[1, valor] / 1000
+    anios_df[i, valor] <-  data_00
+  }
   
 }
 
