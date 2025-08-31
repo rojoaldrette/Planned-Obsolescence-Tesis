@@ -28,6 +28,10 @@ options(scipen = 999)
 # PREAMBULO _________________________________________________________________________________________________
 
 
+# Eliminar objetos
+
+rm(list=ls())
+
   # Setwd()
 
 path <- readClipboard()
@@ -35,16 +39,18 @@ path <- gsub("\\\\", "/", path)
 setwd(path)
 
 
-  # Eliminar objetos
-
-rm(list=ls())
-
-
   # Paquetes
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(dplyr, ggplot2, readxl, openxlsx, lubridate, httr, jsonlite,
                tidyenigh, stringr)
 
+library(dataAPIs)
+
+set_api_tokens(
+  banxico_token = "cdd1fb5cef5f5c4302cd2fac0b9bb1518866008fc6c8d09d297548d56d00e2dd",
+  inegi_token = "88cf3fd3-4f88-4448-98dd-d4c505b9c6f4",
+  fred_token = "cd961dd4a15107e7dc6bdf663faf1f0f"
+)
 
 font_add_google("Montserrat")
 showtext_auto()
@@ -57,13 +63,13 @@ showtext_auto()
 
 #library(tidyenigh)
 
-
+# Inflación
+inpc <- api_one.banxico("SP1", from = "2010-01-01", to = "2024-12-01")
 
 # Cargando las bases
 
 # Gastoshogar
-gh24 <- read.csv("gastoshogar24.csv",
-                 col_select = c()) %>%
+gh24 <- read.csv("gastoshogar24.csv") %>%
   filter(clave == "053121")
 gh22 <- read.csv("gastoshogar22.csv") %>%
   filter(clave == "K015")
@@ -111,7 +117,6 @@ viv12 <- read.csv("viviendas12.csv")
 
 # Añadir factor a las que les falta (20, 18, 16)
 
-
 hog20 <- hog20 %>%
   left_join(
     viv20 %>% select(folioviv, factor),
@@ -128,6 +133,8 @@ hog16 <- hog16 %>%
     by = "folioviv"
   )
 
+colnames(hog14)[colnames(hog14) == "factor_hog"] <- "factor"
+colnames(hog12)[colnames(hog12) == "factor_hog"] <- "factor"
 
 # Script _________________________________________________________________________________________________
 
@@ -137,7 +144,7 @@ hog16 <- hog16 %>%
 # Función para obtener cantidad de ventas, vectores de precios,
 # cantidad de hogares y así...
 
-get_all <- function(gas, hog, profile=0){
+get_all <- function(gas, hog){
 
   gas <- gas
   hog <- hog %>%
@@ -146,90 +153,92 @@ get_all <- function(gas, hog, profile=0){
   if (!"factor" %in% names(gas)){
     gas <- gas %>%
       left_join(
-        hog %>% select(folioviv, factor),
-        by = "folioviv"
+        hog %>% select(folioviv, foliohog, factor),
+        by = c("folioviv", "foliohog")
         )
   }
   
   
-  # Cantidades y precio
+  # Cantidades de venta y precio
   precios <- c()
   cant_vendida <- 0
-  precios1 <- c()
-  folios_1 <- c()
   print("Precios...")
   for (i in 1:nrow(gas)){
+    cant_vendida <- cant_vendida + gas$factor[i]
     if (!is.na(gas$costo[i]) && gas$costo[i] > 0) {
-      precios1 <- append(precios1, gas$costo[i])
+      precios <- append(precios, gas$costo[i])
     } else if (!is.na(gas$gasto[i]) && gas$gasto[i] > 0) {
-      precios1 <- append(precios1, gas$gasto[i])
+      precios <- append(precios, gas$gasto[i])
     }
   }
   
-  print("Casos...")
-  # Caso no discriminación de precios
-  if (profile == 0){
-    for (i in 1:nrow(gas)){
-      cant_vendida <- cant_vendida + gas$factor[i]
-    }
-    precios <- precios1
-    folios_1 <- gas$folioviv
-    
-  # Caso discriminación de ricos (2 sd)
-  } else if(profile == 1){
-    
-    for (i in 1:nrow(gas)){
-      if (!is.na(gas$costo[i]) && gas$costo[i] > 0 && gas$costo[i] < (mean(precios1)+ sd(precios1))) {
-        precios <- append(precios, gas$costo[i])
-        cant_vendida <- cant_vendida + gas$factor[i]
-        folios_1 <- append(folios_1, gas$folioviv)
-      } else if (!is.na(gas$gasto[i]) && gas$gasto[i] > 0 && gas$gasto[i] < (mean(precios1)+ sd(precios1))) {
-        precios <- append(precios, gas$gasto[i])
-        cant_vendida <- cant_vendida + gas$factor[i]
-        folios_1 <- append(folios_1, gas$folioviv)
-      }
-    }
-  # Caso discrimnación de pobres (2 sd)
-  } else if (profile == 2){
-    
-    for (i in 1:nrow(gas)){
-      if (!is.na(gas$costo[i]) && gas$costo[i] > 0 && gas$costo[i] > (mean(precios1)+ sd(precios1))) {
-        precios <- append(precios, gas$costo[i])
-        cant_vendida <- cant_vendida + gas$factor[i]
-        folios_1 <- append(folios_1, gas$folioviv)
-      } else if (!is.na(gas$gasto[i]) && gas$gasto[i] > 0 && gas$gasto[i] > (mean(precios1)+ sd(precios1))) {
-        precios <- append(precios, gas$gasto[i])
-        cant_vendida <- cant_vendida + gas$factor[i]
-        folios_1 <- append(folios_1, gas$folioviv)
-      }
-    }
-  }
   
-  # Cantidad hogar, creo que el %in% es O(n) o poco mejor, tarda mucho
-  # Mejor debería hacerlo algo binario (folioviv que cumple y que no)
+  # Cantidad hogar
   print("Cantidad hogar...")
+  hog$lavad_n <- hog$num_lavad * hog$factor
   # Sumar directamente la cantidad expandida
-  cant_hog <- sum(hog$num_lavad * hog$factor, na.rm = TRUE)
+  cant_hog <- sum(hog$lavad_n, na.rm = TRUE)
+  
+  # Años
+  anios <- unique(hog$anio_lavad)
+  lavad_anios <- data.frame(cant_total = cant_hog,
+                            ventas = cant_vendida)
+  for (anio in anios) {
+    lavad_anios[[as.character(anio)]] <- NA
+  }
+  for (anio in anios){
+    hog_temp <- hog %>%
+      filter(anio_lavad == anio)
+    lavad_anios[[as.character(anio)]] <- sum(hog_temp$lavad_n, na.rm = TRUE)
+    
+  }
+  
+  
   
   print("Listo!!")
   results <- list(
-    hogares = cant_hog,
-    ventas = cant_vendida,
+    df_final = lavad_anios,
     precios = precios
   )
-  
-  
   
 }
 
 
 
-coso20 <- get_all(gh20, hog20, viv20, profile = 0)
-coso22 <- get_all(gh22, hog22, viv22, profile = 0)
-coso24 <- get_all(gh24, hog24, viv24, profile = 0)
-coso18 <- get_all(gh18, hog18, viv18, profile = 0)
-coso16 <- get_all(gh16, hog16, viv16, profile = 0)
 
+coso16 <- get_all(gh16, hog16)
+coso18 <- get_all(gh18, hog18)
+coso20 <- get_all(gh20, hog20)
+coso22 <- get_all(gh22, hog22)
+coso24 <- get_all(gh24, hog24)
+
+coso_list <- list(coso16, coso18, coso20, coso22, coso24)
+
+pene <- coso_list[[1]]
+
+anios_df <- data.frame(id = seq(1, 5))
+anios_df[[as.character("00")]] <- NA
+anios_df[[as.character("01")]] <- NA
+anios_df[[as.character("02")]] <- NA
+anios_df[[as.character("03")]] <- NA
+anios_df[[as.character("04")]] <- NA
+
+for (i in 1:5){
+  coso_0 <- coso_list[[i]]
+  coso_1 <- coso_0$df_final
+  data_00 <- coso_1[1, "00"]
+  data_01 <- coso_1[1, "01"]
+  data_02 <- coso_1[1, "02"]
+  data_03 <- coso_1[1, "03"]
+  data_04 <- coso_1[1, "04"]
+  
+  anios_df[i, "00"] <-  data_00
+  anios_df[i, "01"] <-  data_01
+  anios_df[i, "02"] <-  data_02
+  anios_df[i, "03"] <-  data_03
+  anios_df[i, "04"] <-  data_04
+  
+}
 
 
 sales <- c(coso16$ventas, coso18$ventas, coso20$ventas, coso22$ventas, coso24$ventas) / 100000
