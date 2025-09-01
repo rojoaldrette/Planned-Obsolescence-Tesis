@@ -136,6 +136,9 @@ hog16 <- hog16 %>%
 colnames(hog14)[colnames(hog14) == "factor_hog"] <- "factor"
 colnames(hog12)[colnames(hog12) == "factor_hog"] <- "factor"
 
+colnames(hog10)[colnames(hog10) == "eqh12_n"] <- "num_lavad"
+colnames(hog10)[colnames(hog10) == "eqh12_a"] <- "anio_lavad"
+
 # Script _________________________________________________________________________________________________
 
 
@@ -169,6 +172,8 @@ get_all <- function(gas, hog){
       precios <- append(precios, gas$costo[i])
     } else if (!is.na(gas$gasto[i]) && gas$gasto[i] > 0) {
       precios <- append(precios, gas$gasto[i])
+    } else if(is.na(gas$costo[i]) && is.na(gas$gasto[i])){
+      precios <- append(precios, NA)
     }
   }
   
@@ -268,6 +273,42 @@ anios_df <- anios_df %>%
   mutate(`95-99` = `95` + `96` + `97` + `98` + `99`,
          `00-05`=`00` + `01` + `02` + `03` + `04` + `05`,
          `06-10`=`06` + `07` + `08` + `09` + `10`)
+anios_df$t <- seq(1, 7, by=1)
+
+
+anios_df <- anios_df %>%
+  mutate(t_99 = 100 * c(0, diff(log(`95-99`))),
+         t_00 = 100 * c(0, diff(log(`00-05`))),
+         t_06 = 100 * c(0, diff(log(`06-10`))) )
+
+anios_df <- anios_df %>%
+  mutate(s_99 = 100 * `95-99` / `95-99`[1],
+         s_00 = 100 * `00-05` / `00-05`[1],
+         s_06 = 100 * `06-10` / `06-10`[1] )
+
+
+anios_df <- anios_df %>%
+  mutate(p_99 = -100 * c(0, diff(`95-99`)) / `95-99`[1],
+         p_00 = -100 * c(0, diff(`00-05`)) / `00-05`[1],
+         p_06 = -100 * c(0, diff(`06-10`)) / `06-10`[1] )
+
+
+# Se usa la función de rutils.R
+# Gráficas
+ts_graph(anios_df$id, list(anios_df$`95-99`, anios_df$`00-05`, anios_df$`06-10`),
+         jump=1000, lim1=0, lim2=10000, titulo = "Número de lavadoras por cohorte")
+
+ts_graph(anios_df$id, list(anios_df$t_99, anios_df$t_00, anios_df$t_06),
+         jump=10, lim1=-100, lim2=20, titulo = "Tasa de cambio")
+
+ts_graph(anios_df$id, list(anios_df$s_99, anios_df$s_00, anios_df$s_06),
+         jump=10, lim1=0, lim2=100, titulo = "% de unidades sobrevivientes", from=2)
+
+ts_graph(anios_df$id, list(anios_df$p_99, anios_df$p_00, anios_df$p_06),
+         jump=10, lim1=-10, lim2=100, titulo = "% de unidades perdidas c/r a inicial", from=2)
+
+
+
 
 
 
