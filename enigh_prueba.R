@@ -205,6 +205,8 @@ get_all <- function(gas, hog){
 }
 
 
+coso10 <- get_all(gh10, hog10)
+
 coso12 <- get_all(gh12, hog12)
 coso14 <- get_all(gh14, hog14)
 coso16 <- get_all(gh16, hog16)
@@ -238,7 +240,10 @@ anios_df <- data.frame(id = c(2012, 2014, 2016, 2018, 2020, 2022, 2024),
                        cantidad = NA)
 
 valores1 <- c("00", "01", "02", "03", "04", "05")
-valores <- c("06", "07", "08", "09", "10")
+valores2 <- c("06", "07", "08", "09", "10")
+
+valores <- c("95", "96", "97", "98", "99", "00", "01", "02", "03", "04", "05",
+             "06", "07", "08", "09", "10")
 for (valor in valores){
   anios_df[[as.character(valor)]] <- NA
 }
@@ -257,6 +262,14 @@ for (i in 1:7){
   }
   
 }
+
+
+anios_df <- anios_df %>%
+  mutate(`95-99` = `95` + `96` + `97` + `98` + `99`,
+         `00-05`=`00` + `01` + `02` + `03` + `04` + `05`,
+         `06-10`=`06` + `07` + `08` + `09` + `10`)
+
+
 
 
 sales <- c(coso16$ventas, coso18$ventas, coso20$ventas, coso22$ventas, coso24$ventas) / 100000
