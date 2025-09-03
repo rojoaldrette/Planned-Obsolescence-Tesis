@@ -168,7 +168,7 @@ get_all <- function(gas, hog){
   print("Precios...")
   for (i in 1:nrow(gas)){
     cant_vendida <- cant_vendida + gas$factor[i]
-    if (!is.na(gas$costo[i]) && gas$costo[i] > 0) {
+    if ((!is.na(gas$costo[i]) && gas$costo[i] > 0) | !("costo" %in% colnames(gas))) {
       precios <- append(precios, gas$costo[i])
     } else if (!is.na(gas$gasto[i]) && gas$gasto[i] > 0) {
       precios <- append(precios, gas$gasto[i])
@@ -230,9 +230,14 @@ colnames(coso12$df_final) <- ifelse(
   paste0("0", colnames(coso12$df_final)),       # Add leading zero
   colnames(coso12$df_final)                     
 )
+colnames(coso10$df_final) <- ifelse(
+  grepl("^[0-9]$", colnames(coso10$df_final)),  # If it's a single digit
+  paste0("0", colnames(coso10$df_final)),       # Add leading zero
+  colnames(coso10$df_final)                     
+)
 
 
-coso_list <- list(coso12, coso14, coso16, coso18, coso20, coso22, coso24)
+coso_list <- list(coso10, coso12, coso14, coso16, coso18, coso20, coso22, coso24)
 
 View(table(hog10$eqh12_a))
 View(table(hog12$anio_lavad))
@@ -241,7 +246,7 @@ View(table(hog16$anio_lavad))
 View(table(hog18$anio_lavad))
 
 
-anios_df <- data.frame(id = c(2012, 2014, 2016, 2018, 2020, 2022, 2024),
+anios_df <- data.frame(id = c(2010, 2012, 2014, 2016, 2018, 2020, 2022, 2024),
                        cantidad = NA)
 
 valores1 <- c("00", "01", "02", "03", "04", "05")
@@ -253,7 +258,7 @@ for (valor in valores){
   anios_df[[as.character(valor)]] <- NA
 }
 
-for (i in 1:7){
+for (i in 1:8){
   coso_0 <- coso_list[[i]]
   coso_1 <- coso_0$df_final %>%
     select(-ventas)
@@ -302,10 +307,21 @@ ts_graph(anios_df$id, list(anios_df$t_99, anios_df$t_00, anios_df$t_06),
          jump=10, lim1=-100, lim2=20, titulo = "Tasa de cambio")
 
 ts_graph(anios_df$id, list(anios_df$s_99, anios_df$s_00, anios_df$s_06),
-         jump=10, lim1=0, lim2=100, titulo = "% de unidades sobrevivientes", from=2)
+         jump=10, lim1=0, lim2=100, titulo = "% de unidades sobrevivientes")
 
 ts_graph(anios_df$id, list(anios_df$p_99, anios_df$p_00, anios_df$p_06),
          jump=10, lim1=-10, lim2=100, titulo = "% de unidades perdidas c/r a inicial", from=2)
+
+
+
+
+
+
+
+
+
+
+
 
 
 
