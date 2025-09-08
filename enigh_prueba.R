@@ -188,6 +188,8 @@ get_all <- function(gas, hog){
   anios <- unique(hog$anio_lavad)
   lavad_anios <- data.frame(cant_total = cant_hog,
                             ventas = cant_vendida)
+  hog <- hog %>%
+    mutate(num_lavad=if_else((num_lavad >= 1 & !is.na(num_lavad)), 1, num_lavad))
   for (anio in anios) {
     lavad_anios[[as.character(anio)]] <- NA
   }
@@ -239,12 +241,6 @@ colnames(coso10$df_final) <- ifelse(
 
 coso_list <- list(coso10, coso12, coso14, coso16, coso18, coso20, coso22, coso24)
 
-View(table(hog10$eqh12_a))
-View(table(hog12$anio_lavad))
-View(table(hog14$anio_lavad))
-View(table(hog16$anio_lavad))
-View(table(hog18$anio_lavad))
-
 
 anios_df <- data.frame(id = c(2010, 2012, 2014, 2016, 2018, 2020, 2022, 2024),
                        cantidad = NA)
@@ -252,61 +248,80 @@ anios_df <- data.frame(id = c(2010, 2012, 2014, 2016, 2018, 2020, 2022, 2024),
 valores1 <- c("00", "01", "02", "03", "04", "05")
 valores2 <- c("06", "07", "08", "09", "10")
 
-valores <- c("95", "96", "97", "98", "99", "00", "01", "02", "03", "04", "05",
-             "06", "07", "08", "09", "10")
+valores <- c("90", "91", "92", "93", "94", 
+             "95", "96", "97", "98", "99",
+             "00", "01", "02", "03", "04", "05",
+             "06", "07", "08", "09", "10",
+             "11", "12", "13", "14", "15",
+             "16", "17", "18", "19", "20",
+             "21", "22", "23", "24")
+
 for (valor in valores){
   anios_df[[as.character(valor)]] <- NA
 }
 
 for (i in 1:8){
+  # Seleccionar un coso y seleccionar las columnas de interés
   coso_0 <- coso_list[[i]]
   coso_1 <- coso_0$df_final %>%
     select(-ventas)
   
+  ## Obtener cantidad total primero y guardarla
   data_ini <- coso_1[1, 1] / 1000
   anios_df[i, "cantidad"] <- data_ini
   
+  
   for (valor in valores){
-    data_00 <- coso_1[1, valor] / 1000
-    anios_df[i, valor] <-  data_00
+    if (!(valor %in% colnames(coso_1))){
+      anios_df[i, valor] <-  NA
+    } else{
+      data_00 <- coso_1[1, valor] / 1000
+      anios_df[i, valor] <-  data_00 
+    }
   }
   
 }
 
 
 anios_df <- anios_df %>%
-  mutate(`95-99` = `95` + `96` + `97` + `98` + `99`,
-         `00-05`=`00` + `01` + `02` + `03` + `04` + `05`,
-         `06-10`=`06` + `07` + `08` + `09` + `10`)
-anios_df$t <- seq(1, 7, by=1)
+  mutate(c1 = `90` + `91` + `92` + `93` + `94`,
+         c2 = `95` + `96` + `97` + `98` + `99`,
+         c3 = `00` + `01` + `02` + `03` + `04` + `05`,
+         c4 = `06` + `07` + `08` + `09` + `10`)
+anios_df$t <- seq(1, 8, by=1)
 
 
 anios_df <- anios_df %>%
-  mutate(t_99 = 100 * c(0, diff(log(`95-99`))),
-         t_00 = 100 * c(0, diff(log(`00-05`))),
-         t_06 = 100 * c(0, diff(log(`06-10`))) )
+  mutate(t_c1 = 100 * c(0, diff(log(c1))),
+         t_c2 = 100 * c(0, diff(log(c2))),
+         t_c3 = 100 * c(0, diff(log(c3))),
+         t_c4 = 100 * c(0, diff(log(c4))) )
 
 anios_df <- anios_df %>%
-  mutate(s_99 = 100 * `95-99` / `95-99`[1],
-         s_00 = 100 * `00-05` / `00-05`[1],
-         s_06 = 100 * `06-10` / `06-10`[1] )
+  mutate(s_c1 = 100 * c1 / c1[1],
+         s_c2 = 100 * c2 / c2[1],
+         s_c3 = 100 * c3 / c3[1],
+         s_c4 = 100 * c4 / c4[1] )
 
 
 anios_df <- anios_df %>%
-  mutate(p_99 = -100 * c(0, diff(`95-99`)) / `95-99`[1],
-         p_00 = -100 * c(0, diff(`00-05`)) / `00-05`[1],
-         p_06 = -100 * c(0, diff(`06-10`)) / `06-10`[1] )
+  mutate(p_c1 = -100 * c(0, diff(c1)) / c1[1],
+         p_c2 = -100 * c(0, diff(c2)) / c2[1],
+         p_c3 = -100 * c(0, diff(c3)) / c3[1],
+         p_c4 = -100 * c(0, diff(c4)) / c4[1] )
 
 
 # Se usa la función de rutils.R
 # Gráficas
-ts_graph(anios_df$id, list(anios_df$`95-99`, anios_df$`00-05`, anios_df$`06-10`),
+
+ts_graph(anios_df$id, list(anios_df$c1, anios_df$c2, anios_df$c3, anios_df$c4),
          jump=1000, lim1=0, lim2=10000, titulo = "Número de lavadoras por cohorte")
 
-ts_graph(anios_df$id, list(anios_df$t_99, anios_df$t_00, anios_df$t_06),
+
+ts_graph(anios_df$id, list(anios_df$t_c1, anios_df$t_c2, anios_df$t_c3, anios_df$t_c4),
          jump=10, lim1=-100, lim2=20, titulo = "Tasa de cambio")
 
-ts_graph(anios_df$id, list(anios_df$s_99, anios_df$s_00, anios_df$s_06),
+ts_graph(anios_df$id, list(anios_df$s_c1, anios_df$s_c2, anios_df$s_c3, anios_df$s_c4),
          jump=10, lim1=0, lim2=100, titulo = "% de unidades sobrevivientes")
 
 ts_graph(anios_df$id, list(anios_df$p_99, anios_df$p_00, anios_df$p_06),
@@ -322,6 +337,15 @@ ts_graph(anios_df$id, list(anios_df$p_99, anios_df$p_00, anios_df$p_06),
 
 
 
+## Prueba cohortes de 10-15 y 16-20
+
+# Grupos de años
+g1 <- c("06", "07", "08", "09", "10")
+g2 <- c("11", "12", "13", "14", "15")
+g3 <- c("16", "17", "18", "19", "20")
+
+cohorts <- data.frame(year = c(10, 12, 14, 16, 18, 20, 22, 24),
+                      g1=NA, g2=NA, g3=NA)
 
 
 
