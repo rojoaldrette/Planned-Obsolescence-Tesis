@@ -42,7 +42,7 @@ setwd(path)
   # Paquetes
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(dplyr, ggplot2, readxl, openxlsx, lubridate, httr, jsonlite,
-               tidyenigh, stringr)
+               tidyenigh, stringr, haven, foreign)
 
 library(dataAPIs)
 
@@ -94,7 +94,8 @@ hog22 <- read.csv("hogares22.csv") %>%
 hog20 <- read.csv("hogares20.csv") %>%
   select(folioviv, foliohog, num_lavad, anio_lavad)
 hog18 <- read.csv("hogares18.csv") %>%
-  select(folioviv, foliohog, num_lavad, anio_lavad)
+  select(folioviv, foliohog, num_lavad, anio_lavad) %>%
+  filter(!is.na(num_lavad))
 hog16 <- read.csv("hogares16.csv") %>%
   select(folioviv, foliohog, num_lavad, anio_lavad)
 hog14 <- read.csv("hogares14.csv") %>%
@@ -103,6 +104,15 @@ hog12 <- read.csv("hogares12.csv") %>%
   select(folioviv, foliohog, num_lavad, anio_lavad, factor_hog)
 hog10 <- read.csv("hogares10.csv") %>%
   select(folioviv, foliohog, eqh12_n, eqh12_a, factor)
+hog08 <- read.csv("hogares08.csv") %>%
+  select(folioviv, foliohog, eqh4_12, factor)
+hog06 <- read_dta("hogares06.dta") %>%
+  select(folio, eqh07_23, eqh08_23, factor)
+hog04 <- read.dbf("hogares04.dbf") %>%
+  select(FOLIO, EQH10_23, FACTOR)
+hog02 <- read.dbf("hogares02.dbf") %>%
+  select(FOLIO, APAR59_28, APAR60_28, FACTOR)
+
 
 
 # Vivienda
@@ -121,23 +131,54 @@ hog20 <- hog20 %>%
   left_join(
     viv20 %>% select(folioviv, factor),
     by = "folioviv"
+  ) %>%
+  group_by(folioviv) %>%
+  mutate(
+    n_hog = n(),
+    factor = factor / n_hog
   )
+
+
 hog18 <- hog18 %>%
   left_join(
     viv18 %>% select(folioviv, factor),
     by = "folioviv"
+  ) %>%
+  group_by(folioviv) %>%
+  mutate(
+    n_hog = n(),
+    factor = factor / n_hog
   )
 hog16 <- hog16 %>%
   left_join(
     viv16 %>% select(folioviv, factor),
     by = "folioviv"
+  ) %>%
+  group_by(folioviv) %>%
+  mutate(
+    n_hog = n(),
+    factor = factor / n_hog
   )
 
 colnames(hog14)[colnames(hog14) == "factor_hog"] <- "factor"
 colnames(hog12)[colnames(hog12) == "factor_hog"] <- "factor"
+colnames(hog04)[colnames(hog04) == "FACTOR"] <- "factor"
+colnames(hog02)[colnames(hog02) == "FACTOR"] <- "factor"
 
 colnames(hog10)[colnames(hog10) == "eqh12_n"] <- "num_lavad"
+colnames(hog08)[colnames(hog08) == "eqh4_12"] <- "num_lavad"
+colnames(hog06)[colnames(hog06) == "eqh07_23"] <- "num_lavad"
+colnames(hog04)[colnames(hog04) == "EQH10_23"] <- "num_lavad"
+colnames(hog02)[colnames(hog02) == "APAR59_28"] <- "num_lavad"
+
 colnames(hog10)[colnames(hog10) == "eqh12_a"] <- "anio_lavad"
+
+
+# Hog 08 hacerlo con binario bien
+
+hog08 <- hog08 %>%
+  mutate(num_lavad = ifelse(num_lavad == 2, 0, 1))
+
 
 # Script _________________________________________________________________________________________________
 
@@ -148,34 +189,40 @@ colnames(hog10)[colnames(hog10) == "eqh12_a"] <- "anio_lavad"
 # cantidad de hogares y así...
 
 get_all <- function(gas, hog){
-
-  gas <- gas
-  hog <- hog %>%
-    filter(num_lavad >= 1)
   
-  if (!"factor" %in% names(gas)){
-    gas <- gas %>%
-      left_join(
-        hog %>% select(folioviv, foliohog, factor),
-        by = c("folioviv", "foliohog")
-        )
-  }
-  
-  
-  # Cantidades de venta y precio
-  precios <- c()
-  cant_vendida <- 0
-  print("Precios...")
-  for (i in 1:nrow(gas)){
-    cant_vendida <- cant_vendida + gas$factor[i]
-    if ((!is.na(gas$costo[i]) && gas$costo[i] > 0) | !("costo" %in% colnames(gas))) {
-      precios <- append(precios, gas$costo[i])
-    } else if (!is.na(gas$gasto[i]) && gas$gasto[i] > 0) {
-      precios <- append(precios, gas$gasto[i])
-    } else if(is.na(gas$costo[i]) && is.na(gas$gasto[i])){
-      precios <- append(precios, NA)
-    }
-  }
+  # if (!is.null(gas)){
+  # 
+  #   gas <- gas
+  #   hog <- hog %>%
+  #     filter(num_lavad >= 1)
+  # 
+  #   if (!"factor" %in% names(gas)){
+  #     gas <- gas %>%
+  #       left_join(
+  #         hog %>% select(folioviv, foliohog, factor),
+  #         by = c("folioviv", "foliohog")
+  #       )
+  #   }
+  # 
+  # 
+  #   # Cantidades de venta y precio
+  #   precios <- c()
+  #   cant_vendida <- 0
+  #   print("Precios...")
+  #   for (i in 1:nrow(gas)){
+  #     cant_vendida <- cant_vendida + gas$factor[i]
+  #     if ((!is.na(gas$costo[i]) && gas$costo[i] > 0) | !("costo" %in% colnames(gas))) {
+  #       precios <- append(precios, gas$costo[i])
+  #     } else if (!is.na(gas$gasto[i]) && gas$gasto[i] > 0) {
+  #       precios <- append(precios, gas$gasto[i])
+  #     } else if(is.na(gas$costo[i]) && is.na(gas$gasto[i])){
+  #       precios <- append(precios, NA)
+  #     }
+  #   }
+  # 
+  # } else{
+  #   precios <- NA
+  # }
   
   
   # Cantidad hogar
@@ -183,11 +230,11 @@ get_all <- function(gas, hog){
   hog$lavad_n <- hog$num_lavad * hog$factor
   # Sumar directamente la cantidad expandida
   cant_hog <- sum(hog$lavad_n, na.rm = TRUE)
+  serie_numlavad <- cant_hog
   
   # Años
   anios <- unique(hog$anio_lavad)
-  lavad_anios <- data.frame(cant_total = cant_hog,
-                            ventas = cant_vendida)
+  lavad_anios <- data.frame(cant_total = cant_hog ) #, ventas = cant_vendida)
   hog <- hog %>%
     mutate(num_lavad=if_else((num_lavad >= 1 & !is.na(num_lavad)), 1, num_lavad))
   for (anio in anios) {
@@ -206,12 +253,13 @@ get_all <- function(gas, hog){
   print("Listo!!")
   results <- list(
     df_final = lavad_anios,
-    precios = precios
+    # precios = precios,
+    serie_numlavad = serie_numlavad
   )
   
 }
 
-
+coso08 <- get_all(gas=NULL, hog08)
 coso10 <- get_all(gh10, hog10)
 
 coso12 <- get_all(gh12, hog12)
@@ -239,8 +287,23 @@ colnames(coso10$df_final) <- ifelse(
 )
 
 
-coso_list <- list(coso10, coso12, coso14, coso16, coso18, coso20, coso22, coso24)
+coso_list <- list(coso08, coso10, coso12, coso14, coso16, coso18, coso20, coso22, coso24)
 
+
+# Mejora de gastoshogar -----------
+
+# Qué queremos de gastoshogar:
+# - Estimar número de ventas nuevas (lavadoras entrado en la economía)
+# - Obtener cuántas lavadoras están cambiando de mano (intraventas)
+# - Obtener los precios a los que se están transando
+
+
+
+
+
+
+
+# Cohortes ------------------
 
 anios_df <- data.frame(id = c(2010, 2012, 2014, 2016, 2018, 2020, 2022, 2024),
                        cantidad = NA)
@@ -353,32 +416,67 @@ cohorts <- data.frame(year = c(10, 12, 14, 16, 18, 20, 22, 24),
 
 
 
-sales <- c(coso16$ventas, coso18$ventas, coso20$ventas, coso22$ventas, coso24$ventas) / 100000
-lavadoras <- c(coso16$hogares, coso18$hogares, coso20$hogares, coso22$hogares, coso24$hogares) / 100000
-media_p <- c(mean(coso20$precios), mean(coso22$precios), mean(coso24$precios))
-med_p <- c(median(coso20$precios), median(coso22$precios), median(coso24$precios))
-t <- c(2016, 2018, 2020, 2022, 2024)
 
-twoyear_sales_1 <- 8 * (sales[1] + ((sales[2] - sales[1]) / 8))
-twoyear_sales_2 <- 8 * (sales[2] + ((sales[3] - sales[2]) / 8))
-twoyear_sales_3 <- 8 * (sales[3] + ((sales[4] - sales[3]) / 8))
-twoyear_sales_4 <- 8 * (sales[4] + ((sales[5] - sales[4]) / 8))
+# Calcular número de lavadoras en el tiempo ----------------------
 
-
-delta_1 <- ((twoyear_sales_1 - lavadoras[2]) / lavadoras[1]) + 1
-delta_2 <- ((twoyear_sales_2 - lavadoras[3]) / lavadoras[2]) + 1
-delta_3 <- ((twoyear_sales_3 - lavadoras[4]) / lavadoras[3]) + 1
-delta_4 <- ((twoyear_sales_4 - lavadoras[5]) / lavadoras[4]) + 1
+# Aquí hay varios conflictos
+# - La del 2008 es categórica -> 1:sí, 2:np, esto causa el problema de sub o 
+# sobre estimación. Podríamos calcular la probabilidad de tener más de 1 lava-
+# dora y sacar su distribución entre 2006 y 2010 para obtener una estimación
+# Otra forma es sacar punto medio xd que genuinamente creo que no debería tener
+# tanto error como otros métodos
 
 
-deltas <- c(delta_1, delta_2, delta_3, delta_4)
+# Lista de datos hogares
 
-plot(deltas)
-plot(sales)
+hogares <- list(hog02, hog04, hog06, hog08,
+                hog10, hog12, hog14, hog16,
+                hog18, hog20, hog22, hog24)
+
+
+# Vamos a hacer otra función solo pa N de lavadoras
+
+get_num_lavad <- function(hogares){
+  niu <- hogares$num_lavad * hogares$factor
+  total <- as.numeric(sum(niu))
+  return(total)
+}
+
+
+num_df <- data.frame(fecha = seq(2002, 2024, by=2), num=NA)
+for (i in 1:length(hogares)){
+  cantidad <- get_num_lavad(hogares[[i]]) / 1000000
+  num_df[i, 2] <- cantidad
+  
+}
+
+
+table(hog18$num_lavad)
+
+# Vamos a estimar acá la cantidad de lavad pa 2008
+# Para esto vamos a obtener los porcentajes de numeros de lavad con una función
+
+
+get_pct_nl <- function(hogares){
+
+  hogares$num_factor <- as.factor(hogares$num_lavad)
+  hogares$totales <- hogares$num_lavad * hogares$factor
+  
+  hogares_pct <- hogares %>%
+    group_by(num_factor) %>%
+    summarise(
+      pct = 100 * sum(totales) / get_num_lavad(hogares)
+    )
+}
+
+
+hog10_pct <- get_pct_nl(hog10)
+hog06_pct <- get_pct_nl(hog06)
+
+# Graficar de rutils
+
+ts_graph(num_df$fecha, list(num_df$num), jump = 2, lim1=10, lim2=30, 
+         byx=2, titulo = "Número de lavadoras en los hogares", ylab = "Millones de unidades")
 
 
 
-
-coso1 <- get_all(gh20, hog20, viv20, profile = 1)
-
-coso2 <- get_all(gh20, hog20, viv20, profile = 2)
