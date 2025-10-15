@@ -124,6 +124,7 @@ viv16 <- read.csv("viviendas16.csv")
 viv14 <- read.csv("viviendas14.csv")
 viv12 <- read.csv("viviendas12.csv")
 
+# Limpieza de hogares -------
 
 # Añadir factor a las que les falta (20, 18, 16)
 
@@ -180,8 +181,42 @@ hog08 <- hog08 %>%
   mutate(num_lavad = ifelse(num_lavad == 2, 0, 1))
 
 
-# Script _________________________________________________________________________________________________
+# Limpieza de gastoshogar ---------------
 
+hogares <- list(hog10, hog12, hog14, hog16, hog18, hog20, hog22, hog24)
+
+ghogs <- list(gh10, gh12, gh14, gh16, gh18, gh20, gh22, gh24)
+
+
+# Ponerle el factor de expansión
+
+put_factor_gh <- function(gh, hog){
+  if (!("factor" %in% colnames(gh))){
+    gh <- gh %>%
+      left_join(
+        hog %>% select(folioviv, foliohog, factor),
+        by = c("folioviv", "foliohog")
+      ) 
+  }
+  return(gh)
+}
+
+
+gh10 <- put_factor_gh(gh10, hog10)
+gh12 <- put_factor_gh(gh12, hog12)
+gh14 <- put_factor_gh(gh14, hog14)
+gh16 <- put_factor_gh(gh16, hog16)
+gh18 <- put_factor_gh(gh18, hog18)
+gh20 <- put_factor_gh(gh20, hog20)
+gh22 <- put_factor_gh(gh22, hog22)
+gh24 <- put_factor_gh(gh24, hog24)
+
+
+colnames(gh10)[colnames(gh10) == "lug_com"] <- "lugar_comp"
+
+
+
+# Script --------------------------------------------------------------------------------------
 
 
 
@@ -451,9 +486,9 @@ for (i in 1:length(hogares)){
 }
 
 
-table(hog18$num_lavad)
 
-# Vamos a estimar acá la cantidad de lavad pa 2008
+
+# Vamos a estimar acá la cantidad de lavad pa 2008 --------
 # Para esto vamos a obtener los porcentajes de numeros de lavad con una función
 
 
@@ -475,8 +510,99 @@ hog06_pct <- get_pct_nl(hog06)
 
 # Graficar de rutils
 
-ts_graph(num_df$fecha, list(num_df$num), jump = 2, lim1=10, lim2=30, 
-         byx=2, titulo = "Número de lavadoras en los hogares", ylab = "Millones de unidades")
+
+
+
+
+# Obteniendo ventas y precios de gastoshogar  -----------------------
+
+
+ghogs <- list(gh10, gh12, gh14, gh16, gh18, gh20, gh22, gh24)
+
+# Función para sacar número de compras
+get_ventas <- function(gh){
+  if (!("tipo_gasto" %in% colnames(gh))){
+    gh <- gh %>%
+      filter(!(lugar_comp == 17))
+  } else{
+    gh <- gh %>%
+      filter(tipo_gasto %in% c("G1", "G2", "G5")) %>%
+      filter(!(lugar_comp == 17)) %>%
+      filter(((fecha_adqu <= (max(fecha_adqu))) & (fecha_adqu >= (max(fecha_adqu) - 13))) | (fecha_adqu == 0))
+  }
+  
+  ventas <- sum(gh$factor)
+  return(ventas)
+}
+
+
+# Hacer dataframe de ventas
+vent_df <- data.frame(year = seq(2010, 2024, by=2), vent=NA)
+for (i in 1:length(ghogs)){
+  venta <- get_ventas(ghogs[[i]]) / 1000000
+  vent_df[i, 2] <- venta
+}
+
+
+ventas_vec <- c(NA, NA, NA, NA, vent_df$vent) * 30.19
+
+
+ts_graph(num_df$fecha, list(num_df$num, ventas_vec), jump=2, lim1=0, lim2=30, 
+         byx=2, titulo = "Número de lavadoras en los hogares", 
+         ylab = "Millones de unidades", legend = c("Stock de unidades", "Ventas estimadas"),
+         legloc = "topleft")
+axis(4, at = seq(0, 30, by = 3), pos=2024,
+     labels = format(seq(0, 1, length.out=11), big.mark = ",", scientific = FALSE),
+     cex.axis = 1, tck = -0.02, col = "black", col.ticks = "black", 
+     las = 1, font = 2, side=4)
+
+
+
+# Función de precios promedio y medianos
+
+get_avgprice <- function(gh){
+  if ("costo" %in% colnames(gh)){
+    gh <- gh %>%
+      mutate(precio = ifelse((gasto == 0) | (is.na(gasto)), ifelse((costo == 0) | (is.na(costo)), 0, costo), gasto)) %>%
+      mutate(dp = ifelse(precio > 0, 1, 0))
+  } else{
+    gh <- gh %>%
+      mutate(precio = ifelse((gasto == 0) | (is.na(gasto)), 0, gasto)) %>%
+      mutate(dp = ifelse(precio > 0, 1, 0))
+  }
+  # Promedio
+  n <- sum(gh$dp * gh$factor)
+  avg_p <- sum(gh$precio * gh$factor) / n
+  
+  # Mediana
+  gh <- gh %>%
+    filter(precio > 0)
+  gh$prices <- as.factor(gh$precio)
+  gh <- gh %>%
+    group_by(prices) %>%
+    summarise(quant = sum(factor))
+  gh$quant2 <- cumsum(gh$quant)
+  gh <- as.data.frame(gh)
+  gh$prices <- as.numeric(as.character(gh$prices))
+  median_n <- max(gh$quant2) / 2
+  fila <- which(gh$quant2 >= median_n)[1]
+  median <- gh$prices[as.numeric(fila)]
+  
+  result <- list(avg_p, median)
+  
+  return(result)
+}
+
+
+# Hacer dataframe de precio y medias
+avg_med_df <- data.frame(year=seq(2010, 2024, by=2),
+                         prom=NA, med=NA)
+for (i in 1:length(ghogs)){
+  gh <- ghogs[[i]]
+  avg_med_df[i, 2] <- get_avgprice(gh)[[1]]
+  avg_med_df[i, 3] <- get_avgprice(gh)[[2]]
+}
+
 
 
 
